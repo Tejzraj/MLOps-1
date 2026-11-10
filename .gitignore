@@ -138,3 +138,7 @@ wandb/
 wandb-cache/
 wandb-data/
 wandb-config/
+
+# Combined frontend/API integration environment
+frontend/.venv-integration/
+frontend/.venv-ui311/

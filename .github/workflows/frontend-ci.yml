@@ -7,12 +7,22 @@ name: Frontend CI
       - 'frontend/**'
       - '.dockerignore'
       - 'compose.yaml'
+      - 'src/api/**'
+      - 'src/inference/**'
+      - 'requirements-api*.txt'
+      - 'requirements-inference.txt'
+      - 'params.yaml'
       - '.github/workflows/frontend-ci.yml'
   pull_request:
     paths:
       - 'frontend/**'
       - '.dockerignore'
       - 'compose.yaml'
+      - 'src/api/**'
+      - 'src/inference/**'
+      - 'requirements-api*.txt'
+      - 'requirements-inference.txt'
+      - 'params.yaml'
       - '.github/workflows/frontend-ci.yml'
   workflow_dispatch:
 
@@ -39,15 +49,17 @@ jobs:
             frontend/requirements.txt
             frontend/requirements-dev.txt
       - name: Install frontend test dependencies
-        run: python -m pip install -r frontend/requirements-dev.txt
+        run: python -m pip install -r frontend/requirements-dev.txt -r requirements-api-test.txt
       - name: Run frontend smoke tests
         run: python -m pytest -c frontend/pytest.ini frontend/tests
       - name: Validate Compose configurations
         env:
-          BACKEND_IMAGE: example-backend:validation-only
+          COMPOSE_MODEL_BUNDLE: artifacts/phase2/ci-missing-bundle
         run: |
           docker compose -f compose.yaml config --quiet
           docker compose -f compose.yaml -f frontend/compose.backend.example.yaml config --quiet
+      - name: Build backend image (no private bundle)
+        run: docker build --pull --file src/api/Dockerfile --tag interview-backend:ci .
       - name: Build frontend image
         run: docker build --pull --file frontend/Dockerfile --tag interview-frontend:ci .
       - name: Start frontend container

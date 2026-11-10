@@ -110,7 +110,11 @@ def render_practice(settings: Settings, questions: list[Question], mode: str) ->
                     "SIMULATED RESPONSE · Demo only. This category was selected by you; your answer was not scored."
                 )
             else:
-                st.caption("Source: FastAPI backend")
+                st.caption(f"Source: FastAPI backend · Model version: {result.model_version}")
+                st.warning(
+                    "Experimental quality prediction, not a factual-correctness check. "
+                    "Results may be incorrect and require human review."
+                )
             st.subheader(result.quality_label)
         st.subheader("Compare your explanation")
         candidate_column, reference_column = st.columns(2)
@@ -179,7 +183,7 @@ def main() -> None:
             "Answers stay in the current Streamlit session and are sent to the backend only when you evaluate in API mode."
         )
         st.write(
-            "Set BACKEND_URL, BACKEND_TIMEOUT_SECONDS and FRONTEND_MODE before starting Streamlit. See frontend/README.md for commands and the proposed API contract."
+            "Set BACKEND_URL, BACKEND_TIMEOUT_SECONDS and FRONTEND_MODE before starting Streamlit. See frontend/README.md for commands and the verified API contract."
         )
 
 

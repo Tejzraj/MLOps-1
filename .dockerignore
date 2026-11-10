@@ -40,3 +40,26 @@ wandb
 **/*.pkl
 **/*.joblib
 **/*.onnx
+
+# Public API runtime only. Private bundles remain excluded and are mounted at run time.
+!requirements-api.txt
+!requirements-inference.txt
+!params.yaml
+!src/
+!src/__init__.py
+!src/api/
+!src/api/__init__.py
+!src/api/app.py
+!src/api/model_runtime.py
+!src/api/container.py
+!src/api/Dockerfile
+!src/inference/
+!src/inference/__init__.py
+!src/inference/predict.py
+!src/utils/
+!src/utils/__init__.py
+!src/utils/phase2_common.py
+!src/features/
+!src/features/__init__.py
+!src/models/
+!src/models/__init__.py

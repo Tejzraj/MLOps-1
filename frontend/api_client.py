@@ -21,6 +21,7 @@ class EvaluationResult:
 
     quality_label: str
     simulated: bool
+    model_version: str | None = None
 
 
 def mock_prediction(label: str, settings: Settings) -> EvaluationResult:
@@ -31,11 +32,10 @@ def mock_prediction(label: str, settings: Settings) -> EvaluationResult:
 
 
 def predict(question: Question, candidate_answer: str, settings: Settings) -> EvaluationResult:
-    """POST the proposed /predict contract; reject failures without mock fallback."""
+    """POST the strict FastAPI /predict contract; reject failures without mock fallback."""
     if not candidate_answer.strip():
         raise PredictionError("Write an answer before requesting evaluation.")
     payload = {
-        "question_id": question.question_id,
         "question": question.question,
         "reference_answer": question.reference_answer,
         "candidate_answer": candidate_answer.strip(),
@@ -60,9 +60,12 @@ def predict(question: Question, candidate_answer: str, settings: Settings) -> Ev
         ) from exc
     except requests.HTTPError as exc:
         LOGGER.warning("Prediction HTTP failure (status %s)", exc.response.status_code)
-        raise PredictionError(
-            f"The backend returned HTTP {exc.response.status_code}. Check the API contract and server logs."
-        ) from exc
+        detail = (
+            "Model bundle unavailable or invalid. Check the private bundle mount and server setup."
+            if exc.response.status_code == 503
+            else "Check the API contract and server logs."
+        )
+        raise PredictionError(f"The backend returned HTTP {exc.response.status_code}. {detail}") from exc
     except requests.RequestException as exc:
         LOGGER.warning("Prediction request failed (%s)", type(exc).__name__)
         raise PredictionError("The API request failed. Check the backend configuration.") from exc
@@ -70,10 +73,15 @@ def predict(question: Question, candidate_answer: str, settings: Settings) -> Ev
         body = response.json()
     except ValueError as exc:
         raise PredictionError(
-            "The backend returned invalid JSON. Expected a quality_label field."
+            "The backend returned invalid JSON. Expected predicted_quality and model_version."
         ) from exc
-    if not isinstance(body, dict) or body.get("quality_label") not in settings.quality_labels:
+    if not isinstance(body, dict) or body.get("predicted_quality") not in settings.quality_labels:
         raise PredictionError(
-            "Unexpected API response: quality_label must be one of the four categories."
+            "Unexpected API response: predicted_quality must be one of the four categories."
         )
-    return EvaluationResult(quality_label=body["quality_label"], simulated=False)
+    version = body.get("model_version")
+    if not isinstance(version, str) or not version.strip():
+        raise PredictionError("Unexpected API response: model_version must be a non-empty string.")
+    return EvaluationResult(
+        quality_label=body["predicted_quality"], simulated=False, model_version=version
+    )

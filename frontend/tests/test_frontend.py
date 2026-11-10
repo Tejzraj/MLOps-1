@@ -56,6 +56,7 @@ def test_mock_workflow(app: AppTest, label: str) -> None:
     assert not app.exception
     assert label in [item.value for item in app.subheader]
     assert any("SIMULATED RESPONSE" in item.value for item in app.warning)
+    assert not any("Experimental quality prediction" in item.value for item in app.warning)
     assert any("Reference answer" in item.value for item in app.markdown)
     app.text_area[0].set_value("Edited answer").run()
     assert "Evaluation result" not in [item.value for item in app.subheader]
@@ -103,11 +104,16 @@ def test_live_result_and_retry_failure(app: AppTest) -> None:
     app.radio(key="mode").set_value("api").run()
     app.text_area[0].set_value("My explanation")
     response = Mock(status_code=200)
-    response.json.return_value = {"quality_label": "Excellent"}
+    response.json.return_value = {"predicted_quality": "Excellent", "model_version": "test-contract"}
     with patch("frontend.api_client.requests.post", return_value=response):
         app.button(key="evaluate").click().run()
     assert "Excellent" in [item.value for item in app.subheader]
-    assert any("Source: FastAPI" in item.value for item in app.caption)
+    assert any("Model version: test-contract" in item.value for item in app.caption)
+    assert any(
+        item.value == "Experimental quality prediction, not a factual-correctness check. "
+        "Results may be incorrect and require human review."
+        for item in app.warning
+    )
     with patch("frontend.api_client.requests.post", side_effect=requests.Timeout):
         app.button(key="evaluate").click().run()
     assert app.error
@@ -125,16 +131,16 @@ def test_predict_contract(settings: Settings) -> None:
     """Send the documented payload, configured endpoint and finite timeout."""
     question = load_questions(settings.question_bank_path)[0]
     response = Mock(status_code=200)
-    response.json.return_value = {"quality_label": "Good"}
+    response.json.return_value = {"predicted_quality": "Good", "model_version": "test-contract"}
     custom = replace(settings, backend_url="http://example.test/api", timeout_seconds=3.5)
     with patch("frontend.api_client.requests.post", return_value=response) as post:
         result = predict(question, "  My answer  ", custom)
     assert result.quality_label == "Good"
     assert result.simulated is False
+    assert result.model_version == "test-contract"
     post.assert_called_once_with(
         "http://example.test/api/predict",
         json={
-            "question_id": question.question_id,
             "question": question.question,
             "reference_answer": question.reference_answer,
             "candidate_answer": "My answer",
@@ -171,7 +177,9 @@ def test_http_errors(settings: Settings, status: int) -> None:
             predict(question, "answer", settings)
 
 
-@pytest.mark.parametrize("body", [{}, [], {"quality_label": 2}, {"quality_label": "Unknown"}])
+@pytest.mark.parametrize("body", [{}, [], {"quality_label": "Good"}, {"predicted_quality": 2},
+     {"predicted_quality": "Unknown"}, {"predicted_quality": "Good"},
+     *[{"predicted_quality": "Good", "model_version": value} for value in (None, 1, "", " ")]])
 def test_bad_schema(settings: Settings, body: object) -> None:
     """Reject undocumented responses rather than guessing labels or scores."""
     response = Mock(status_code=200)

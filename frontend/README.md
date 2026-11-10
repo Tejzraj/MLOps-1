@@ -1,248 +1,195 @@
-# Interview Studio frontend
+# Interview Studio: Fedora integration runbook
 
-Python 3.11+ and Streamlit. All new code and configuration live in `frontend/`;
-the application does not load a model or modify any ML pipeline artifacts.
+Run from the repository root. Use Python 3.11 (`python3.11 --version`), matching
+the private bundle's runtime family. The backend and frontend use separate
+virtual environments. Create fresh environments; an existing Fedora Python 3.14
+frontend environment must not be reused for these Python 3.11 commands. Install Python 3.11 through your Fedora package sources
+if it is not available; do not silently substitute Fedora's newer default Python.
 
-## Fedora: install and run
+## Private bundle prerequisite
 
-Run these commands in Konsole from the repository root. The virtual environment
-keeps frontend dependencies separate from the Phase 1 environment.
+Read [the owner handoff](../docs/phase2/teammate_handoff.md). W&B retrieval is
+blocked by account access; do not run retrieval or use someone else's credentials.
+Receive the private ZIP through the approved private channel, under the ignored
+`artifacts/phase2/` directory. Never commit/upload it or extracted files.
+
+From the repository root, verify the ZIP **before extraction**:
 
 ```bash
-cd /home/likithshashidhar/MLOps
-git branch --show-current
-# Expected: phase-2-frontend-devops. Do not work on main.
-python3 --version
-python3 -m venv frontend/.venv
-source frontend/.venv/bin/activate
-python -m pip install -r frontend/requirements-dev.txt
-python -m pytest -c frontend/pytest.ini frontend/tests
-python -m streamlit run frontend/app.py --server.address 127.0.0.1
+sha256sum artifacts/phase2/b0-inference-v1.0.0-private-handoff.zip
 ```
 
-Open **http://localhost:8501**. Stop with **Ctrl+C**. If Python or pip is missing,
-install it with `sudo dnf install python3 python3-pip` first. Always launch from
-the repository root using `python -m streamlit` so the frontend package is importable.
-For runtime only, install `frontend/requirements.txt` instead of the dev file.
-
-## Demo walkthrough
-
-1. Read Home, then choose **Practice** in the sidebar.
-2. Keep **Mock · simulated** selected. A persistent banner identifies mock mode.
-3. Choose a topic and type an answer. Blank/whitespace-only submissions are rejected.
-4. Choose a **Simulated result category**, then click **Evaluate Answer**.
-5. Review the result and side-by-side reference comparison. Try each category:
-   Poor, Needs Improvement, Good, Excellent.
-6. Edit your answer or change questions: an old result is cleared. Each question
-   keeps its own draft within the current session.
-7. Select **API · FastAPI** and evaluate to see real connection errors if the
-   backend is unavailable. The app never falls back to a simulated result.
-
-Mock responses are user-selected UI fixtures: they do not depend on answer
-content, represent human labels, or measure performance. No numeric scores,
-confidence values, agreement values or metrics are generated. Curated questions
-and educational references are not Mohler records or training data.
-
-## Configuration and backend integration
-
-`frontend/params.yaml` contains frontend settings and the question bank path.
-Paths inside it resolve relative to that file. Shared root configuration is not
-used or modified. Optional environment overrides:
-
-| Variable | Purpose |
-| --- | --- |
-| `FRONTEND_PARAMS` | Alternative frontend params.yaml location |
-| `FRONTEND_MODE` | Startup mode: `mock` or `api` (sidebar can explicitly change it) |
-| `BACKEND_URL` | Backend base URL, including an optional API prefix |
-| `BACKEND_TIMEOUT_SECONDS` | Positive, finite request timeout in seconds |
-
-Once your teammate starts FastAPI, stop Streamlit and run:
+The required digest is
+`d1c6fa30fb65429f94f75b3f8231eda1424dcce37605ba77b0b0c4751c53840f`.
+Stop if it differs. Extract into a fresh directory only:
 
 ```bash
-source frontend/.venv/bin/activate
+test ! -e artifacts/phase2/private-handoff && \
+  unzip artifacts/phase2/b0-inference-v1.0.0-private-handoff.zip -d artifacts/phase2/private-handoff
+```
+
+Do not continue if this fails. Missing files are a setup blocker, not a successful
+prediction. There is no fallback to another model or to simulated grading.
+
+## Backend: first terminal
+
+```bash
+python3.11 -m venv .venv-api
+.venv-api/bin/python -m pip install -r requirements-api-test.txt
+export INTERVIEW_MODEL_BUNDLE="$PWD/artifacts/phase2/private-handoff/bundle"
+test -f "$INTERVIEW_MODEL_BUNDLE/bundle_manifest.json"
+.venv-api/bin/python -B -c 'import os; from pathlib import Path; from src.models.retrieve_model import verify_bundle; from src.utils.phase2_common import load_params; verify_bundle(Path(os.environ["INTERVIEW_MODEL_BUNDLE"]), load_params()["phase2_retrieval"])'
+# Continue only after verification exits successfully.
+.venv-api/bin/python -B src/api/app.py
+```
+
+This uses root `params.yaml` and binds to `127.0.0.1:8000`. It verifies/loads the
+frozen bundle once at startup. It does not train or contact W&B.
+
+## Frontend: second terminal
+
+```bash
+python3.11 -m venv frontend/.venv-ui311
+frontend/.venv-ui311/bin/python -m pip install -r frontend/requirements-dev.txt
 export FRONTEND_MODE=api
-export BACKEND_URL=http://localhost:8000
-export BACKEND_TIMEOUT_SECONDS=15
-python -m streamlit run frontend/app.py --server.address 127.0.0.1
+export BACKEND_URL=http://127.0.0.1:8000
+frontend/.venv-ui311/bin/python -m streamlit run frontend/app.py --server.address 127.0.0.1
 ```
 
-The URL is reached by the Streamlit server, not by the browser. Requests are
-server-side, so browser CORS is not needed for this client. The timeout bounds
-connection/read waits; a timed-out request is not retried automatically.
+Open http://127.0.0.1:8501, select Practice, write an answer and evaluate. A real
+result shows the category and model version. API failures clear any old result
+and display an error. The explicitly selected **Mock · simulated** mode is still
+available; its banner and result identify user-selected presentation fixtures.
+Mock categories do not grade the submitted text or represent human dataset labels.
 
-**Proposed contract — confirm with the backend teammate before integration.**
-The backend is not yet available, so a live integration has not been verified.
-`api_client.py` is the single place to adapt serialization if her schema differs.
-The configured endpoint defaults to `POST /predict`:
+## Contract and manual checks
 
-```json
-{
-  "question_id": "practice-stacks",
-  "question": "What is the difference between a stack and a queue? Give a use case for each.",
-  "reference_answer": "The full curated reference answer for the selected question",
-  "candidate_answer": "The candidate's submitted answer"
-}
-```
-
-Expected successful JSON response:
-
-```json
-{"quality_label": "Good"}
-```
-
-`quality_label` must be exactly Poor, Needs Improvement, Good or Excellent.
-Extra response fields are ignored. Integer class IDs and numeric scores are not
-converted into categories by the frontend. Errors include timeout, unreachable
-backend, non-2xx status, redirect, invalid JSON and invalid response schema.
-Backend response bodies and candidate answers are not written to application logs.
-Answers remain in the Streamlit session; the frontend does not persist them to disk.
-
-## Modules and validation
-
-- `app.py`: navigation, presentation, drafts, and result lifecycle.
-- `config.py`: validated frontend configuration and deployment overrides.
-- `question_bank.py` / `questions.yaml`: curated question content and loader.
-- `api_client.py`: HTTP transport, response validation, explicit mock fixtures.
-- `tests/test_frontend.py`: UI smoke tests with Streamlit AppTest plus isolated
-  client tests; no running backend or model is required.
+Verified against `PredictionRequest` and `PredictionResponse` in
+[src/api/app.py](../src/api/app.py): POST `/predict` accepts **only** `question`,
+`reference_answer`, `candidate_answer` as nonblank strings. Do not send
+`question_id`. Successful responses contain `predicted_quality` and a nonempty
+string `model_version`. Categories are Poor, Needs Improvement, Good, Excellent.
+No numeric score, probability or detailed feedback is returned.
 
 ```bash
-python -m pytest -c frontend/pytest.ini frontend/tests
-# Existing Phase 1 tests: use the repository's ML environment, not the frontend venv.
-.venv/bin/python -m pytest -o addopts='' tests
+curl --fail-with-body http://127.0.0.1:8000/health
+curl --fail-with-body http://127.0.0.1:8000/model/info
+curl --fail-with-body http://127.0.0.1:8000/predict \
+  -H 'Content-Type: application/json' \
+  --data '{"question":"What is a stack?","reference_answer":"A stack is a last in first out data structure.","candidate_answer":"A stack uses last in first out order."}'
 ```
 
-Frontend tests use their own pytest configuration so Phase 1 coverage settings
-and ML dependencies are not required.
+Health must report `model_ready: true` before claiming inference works. A 200
+health response alone is liveness. Missing/invalid bundles report readiness false
+and `/predict` returns 503; invalid request fields return 422. Check backend logs
+and the verified bundle path for 503. The frontend uses server-side HTTP, so its
+URL must be reachable from Streamlit; browser CORS configuration is unnecessary.
+Question text is accepted but is not predictive; generalization beyond Mohler
+short answers is unverified and minority-class recall is weak.
 
-## Docker demonstration on Fedora
+## Integration tests
 
-The image uses Python 3.11 slim, frontend runtime requirements only, an unprivileged
-user, and port 8501. The build context permits only the required frontend files.
-There are no dataset/model mounts, build tools, root ML dependencies or API keys.
-Dependencies retain the version ranges already in `frontend/requirements.txt`;
-they are not a frozen lockfile. The Python image tag also receives upstream updates.
-
-Docker is not installed on the development laptop. **Image builds, Compose
-execution and container health checks are unverified locally.** The CI workflow
-is prepared to run these checks, but no remote CI success is claimed until an
-approved push produces a successful Actions run. Deployment is not implemented.
-
-Install Docker Engine and the Compose plugin on a maintained Fedora version:
+Use a separate combined environment for UI/API integration (Streamlit brings
+PyArrow; keep it out of the minimal production API environment):
 
 ```bash
-sudo dnf install dnf-plugins-core
-sudo dnf config-manager addrepo --from-repofile https://download.docker.com/linux/fedora/docker-ce.repo
-sudo dnf install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-sudo systemctl enable --now docker
-sudo docker version
-sudo docker compose version
-sudo docker run --rm hello-world
+python3.11 -m venv frontend/.venv-integration
+frontend/.venv-integration/bin/python -m pip install -r frontend/requirements-integration.txt
+export INTERVIEW_MODEL_BUNDLE="$PWD/artifacts/phase2/private-handoff/bundle"
+frontend/.venv-integration/bin/python -m pytest -c frontend/pytest.ini frontend/tests
 ```
 
-These use the current DNF5 instructions from the
-[official Fedora installation guide](https://docs.docker.com/engine/install/fedora/).
-If conflicting Docker packages are present, follow that guide before installation.
-The commands below use `sudo` so changing Docker group membership is unnecessary.
-Installation commands are instructions for you; they have not been executed here.
+The integration suite routes the frontend's HTTP boundary through the actual
+FastAPI lifecycle and schema. It checks missing-bundle 503 handling, strict 422
+validation, and real inference if the private bundle is supplied. Missing bundles
+produce an explicit skip for the inference test. No fake predictor supplies a
+success. Unit/UI tests use labelled transport fixtures to test presentation.
 
-Build and launch the frontend-only demo from the repository root:
+Run the owner's real-bundle tests separately in the minimal API environment,
+after verifying the bundle (they require the private artifacts):
 
 ```bash
-cd /home/likithshashidhar/MLOps
-sudo docker compose -f compose.yaml config --quiet
-sudo docker compose -f compose.yaml build --pull frontend
-sudo docker compose -f compose.yaml up -d --wait --wait-timeout 120 frontend
-sudo docker compose -f compose.yaml ps
-curl --fail http://127.0.0.1:8501/_stcore/health
-sudo docker compose -f compose.yaml logs --tail=100 frontend
+.venv-api/bin/python -m pytest tests/test_api.py tests/test_model_retrieval.py -q -o addopts=
 ```
 
-Open **http://localhost:8501**. Compose defaults to mock mode. The HTTP health
-endpoint reports Streamlit liveness, not successful grading or backend readiness.
-The image checks this endpoint with Python's standard library, without curl.
-See [Streamlit's Docker guide](https://docs.streamlit.io/deploy/tutorials/docker).
-The host port is bound to loopback for the local demo. No Fedora firewall or
-SELinux changes are needed; there are no bind mounts requiring relabelling.
+Frontend configuration is in `frontend/params.yaml`. Environment overrides:
+`FRONTEND_PARAMS`, `FRONTEND_MODE`, `BACKEND_URL`, `BACKEND_TIMEOUT_SECONDS`.
+No ML pipeline stage is changed by this integration.
 
-Stop the demo:
+## Docker Compose on Fedora with SELinux
+
+Requires Docker Engine with the Compose plugin already installed. From the repo
+root, set a **relative** verified bundle path beneath `artifacts/phase2`:
 
 ```bash
-sudo docker compose -f compose.yaml down
+export COMPOSE_MODEL_BUNDLE=artifacts/phase2/private-handoff/bundle
+test -f "$COMPOSE_MODEL_BUNDLE/bundle_manifest.json"
+sudo env COMPOSE_MODEL_BUNDLE="$COMPOSE_MODEL_BUNDLE" docker compose config --quiet
+sudo env COMPOSE_MODEL_BUNDLE="$COMPOSE_MODEL_BUNDLE" docker compose build
+sudo env COMPOSE_MODEL_BUNDLE="$COMPOSE_MODEL_BUNDLE" docker compose up -d --wait --wait-timeout 120
+sudo env COMPOSE_MODEL_BUNDLE="$COMPOSE_MODEL_BUNDLE" docker compose ps
+sudo env COMPOSE_MODEL_BUNDLE="$COMPOSE_MODEL_BUNDLE" docker compose logs --tail=100 backend frontend
 ```
 
-Equivalent standalone image commands (stop Compose first to free port 8501):
+The frontend defaults to API mode and reaches `http://backend:8000` over Compose
+DNS. The backend launches `python src/api/container.py`, uses the configured port
+and binds to the container interface. Host ports bind only to loopback. Bundle
+contents are mounted read-only, never copied into either image. The bind mount
+uses Fedora SELinux `Z` relabelling on that private directory only; no SELinux or
+firewall disabling is needed. The container's UID 10001 must have read/traverse
+access to the bundle; preserve private permissions, and do not make it world-readable.
+A missing source directory is not auto-created. Missing/corrupt bundles make the
+backend unhealthy and prevent dependent frontend startup. Inspect readiness with
+curl as above. A successful build alone does not verify model loading.
 
 ```bash
-sudo docker build --pull -f frontend/Dockerfile -t interview-frontend:local .
-sudo docker run --rm --name interview-frontend -p 127.0.0.1:8501:8501 interview-frontend:local
-# In another terminal:
-sudo docker inspect --format '{{.State.Health.Status}}' interview-frontend
-sudo docker stop interview-frontend
+sudo env COMPOSE_MODEL_BUNDLE="$COMPOSE_MODEL_BUNDLE" docker compose down
 ```
 
-If startup fails, inspect `docker compose logs` and check for another process on
-port 8501. A healthy container can still show configuration or API errors in the
-UI; smoke tests check the application behavior separately.
-
-## Future FastAPI integration
-
-Repository inspection found no FastAPI entrypoint or backend Dockerfile. The
-default `compose.yaml` therefore runs only the frontend. Its `BACKEND_URL` is
-`http://backend:8000`, using the future Compose service name. `localhost` inside
-the frontend container would refer to the frontend itself.
-
-`frontend/compose.backend.example.yaml` is an **opt-in integration template**.
-It requires `BACKEND_IMAGE`, a real image supplied/built by the backend teammate.
-It uses that image's existing entrypoint; it does not guess a Python module,
-model location, W&B credentials or dependency file. Before using it, confirm:
-
-- The image starts FastAPI on `0.0.0.0:8000` and has all required model assets.
-- Its `/predict` request/response match the contract above, or adapt `api_client.py`.
-- Any backend environment, secrets or mounts are configured with the teammate.
-- Its readiness endpoint is known before adding a backend healthcheck. The
-  template currently waits for container startup only; early requests may fail
-  visibly while the model loads. There is no silent mock fallback.
-
-After that image is available locally, enter its actual tag at the prompt:
+For a frontend-only mock demonstration without any model or backend:
 
 ```bash
-read -r -p 'Verified backend image tag: ' BACKEND_IMAGE
-sudo env BACKEND_IMAGE="$BACKEND_IMAGE" docker compose -f compose.yaml -f frontend/compose.backend.example.yaml config --quiet
-sudo env BACKEND_IMAGE="$BACKEND_IMAGE" docker compose -f compose.yaml -f frontend/compose.backend.example.yaml up -d --build --wait --wait-timeout 120
-sudo env BACKEND_IMAGE="$BACKEND_IMAGE" docker compose -f compose.yaml -f frontend/compose.backend.example.yaml logs --tail=100
-# Stop both services:
-sudo env BACKEND_IMAGE="$BACKEND_IMAGE" docker compose -f compose.yaml -f frontend/compose.backend.example.yaml down
+sudo docker build -f frontend/Dockerfile -t interview-frontend:local .
+sudo docker run --rm -p 127.0.0.1:8501:8501 -e FRONTEND_MODE=mock interview-frontend:local
 ```
 
-The template switches the frontend to API mode, connects both services on the
-default Compose network, and keeps port 8000 internal. It is not a working
-backend implementation and has not been integration-tested.
+The allowlisted build context excludes artifacts, datasets, ZIPs, credentials,
+W&B caches and environments. CI builds both images without private files and
+runs integration tests; the real-bundle test is expected to skip there. CI
+configuration does not establish a successful remote run before a reviewed push.
 
-For the default frontend-only stack, optional overrides are
-`COMPOSE_FRONTEND_MODE`, `COMPOSE_BACKEND_URL` and `COMPOSE_BACKEND_TIMEOUT_SECONDS`.
-Pass them explicitly through `sudo env`, for example:
+## Checks performed in this checkout
+
+The privately supplied handoff ZIP matched the documented SHA-256. It was
+extracted into a fresh ignored directory without overwriting files, and
+`verify_bundle` verified the pinned manifest and every bundle file before any
+Joblib loading. Python 3.11.17 in `.venv-api` matches all pinned API/inference
+package versions; `pip check` reports no broken requirements.
+
+With `INTERVIEW_MODEL_BUNDLE` pointing to that verified directory, this command
+completed with **42 passed, none skipped**, including real model inference:
 
 ```bash
-sudo env COMPOSE_FRONTEND_MODE=api COMPOSE_BACKEND_URL=http://backend:8000 COMPOSE_BACKEND_TIMEOUT_SECONDS=30 docker compose -f compose.yaml up -d frontend
+.venv-api/bin/python -B -m pytest -c frontend/pytest.ini \
+  frontend/tests/test_api_integration.py tests/test_api.py tests/test_model_retrieval.py
 ```
 
-That command requires a reachable backend; it does not create one. Separate
-Compose override names prevent a host development setting such as
-`BACKEND_URL=http://localhost:8000` from leaking into container configuration.
+The running localhost API returned HTTP 200 for `/health` (model ready),
+`/model/info` (version `1.0.0`) and `/predict`. The handoff's example request
+returned `predicted_quality: Excellent` and `model_version: 1.0.0`. A separate
+headless Streamlit AppTest submitted the displayed reference answer through real
+HTTP to the running backend and displayed `Excellent`, version `1.0.0`, with
+`simulated=False`; no HTTP transport was mocked. These are illustrative
+predictions, not model performance metrics. The test suite emitted a Starlette
+HTTPX deprecation warning; tests still passed.
 
-## GitHub Actions CI
+Project syntax, YAML parsing and `git diff --check` passed during integration.
+Docker is not installed and Podman has no Compose provider, so image builds,
+Compose validation, SELinux mount permissions and container startup remain
+unverified locally. CI was updated but has not been triggered. No DVC stage,
+training or evaluation logic was changed; `dvc repro` was not run. No commit,
+push, upload or deployment was made.
 
-`.github/workflows/frontend-ci.yml` runs on relevant pushes to
-`phase-2-frontend-devops` or `main`, pull requests, and manual dispatch. It installs
-only frontend test dependencies on Python 3.11, runs the smoke suite, validates
-both Compose files, builds the frontend image, and waits for its health check.
-The dummy backend image tag used for config validation is never built or pulled.
-The workflow grants only `contents: read`, disables persisted checkout credentials,
-and has no registry login, custom secrets, image publishing or deployment steps.
-See GitHub's [token permissions guidance](https://docs.github.com/en/actions/tutorials/authenticate-with-github_token).
-
-Push only after review/approval, then inspect the **Frontend CI** run under the
-repository's Actions tab. A workflow file alone does not establish a passing build
-or continuous deployment. Authentication, history and model evaluation remain
-outside this work.
+Model quality is separate from integration success. See the
+[model-risk report and opt-in diagnostic command](../docs/phase2/model_quality_risk.md)
+for reproduced semantic failures, exact inputs and exit-code interpretation.

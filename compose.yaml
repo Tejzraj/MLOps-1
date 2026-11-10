@@ -1,4 +1,35 @@
 services:
+  backend:
+    image: interview-backend:local
+    build:
+      context: .
+      dockerfile: src/api/Dockerfile
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      # Same configured relative path is used as the mount target and API override.
+      INTERVIEW_MODEL_BUNDLE: ${COMPOSE_MODEL_BUNDLE:?Set COMPOSE_MODEL_BUNDLE to the verified bundle directory under artifacts/phase2}
+    volumes:
+      - type: bind
+        source: ./${COMPOSE_MODEL_BUNDLE:?Set COMPOSE_MODEL_BUNDLE}
+        target: /app/${COMPOSE_MODEL_BUNDLE:?Set COMPOSE_MODEL_BUNDLE}
+        read_only: true
+        bind:
+          create_host_path: false
+          selinux: Z
+    healthcheck:
+      # Liveness alone is insufficient: do not start the UI with an unavailable model.
+      test: ["CMD", "python", "-c", "import json, urllib.request; from src.api.app import read_settings; r = urllib.request.urlopen(f'http://127.0.0.1:{read_settings().port}/health', timeout=3); assert json.load(r)['model_ready'] is True"]
+      interval: 10s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    init: true
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
   frontend:
     image: interview-frontend:local
     build:
@@ -7,15 +38,15 @@ services:
     ports:
       - "127.0.0.1:8501:8501"
     environment:
-      # Separate Compose variables avoid inheriting a host's localhost API URL.
-      FRONTEND_MODE: ${COMPOSE_FRONTEND_MODE:-mock}
-      BACKEND_URL: ${COMPOSE_BACKEND_URL:-http://backend:8000}
+      FRONTEND_MODE: ${COMPOSE_FRONTEND_MODE:-api}
+      BACKEND_URL: http://backend:8000
       BACKEND_TIMEOUT_SECONDS: ${COMPOSE_BACKEND_TIMEOUT_SECONDS:-15}
+    depends_on:
+      backend:
+        condition: service_healthy
     init: true
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
     cap_drop:
       - ALL
-    # Inherits the Streamlit HEALTHCHECK from frontend/Dockerfile.
-    # No backend dependency: the mock demonstration works independently.

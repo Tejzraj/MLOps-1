@@ -1,19 +1,6 @@
-# Opt-in integration template; never loaded by the default Compose command.
-# Uses a verified image supplied by the backend teammate, with its own entrypoint.
-# Required contract: listens on 0.0.0.0:8000 and implements POST /predict.
+# Backward-compatible override: the real backend is now defined in compose.yaml.
 services:
-  backend:
-    image: ${BACKEND_IMAGE:?Set BACKEND_IMAGE to the verified FastAPI image tag}
-    expose:
-      - "8000"
-    init: true
-    restart: unless-stopped
   frontend:
     environment:
       FRONTEND_MODE: api
       BACKEND_URL: http://backend:8000
-    depends_on:
-      backend:
-        condition: service_started
-# No backend health endpoint is assumed. Confirm one with the teammate before
-# adding a backend healthcheck and switching the condition to service_healthy.

@@ -257,6 +257,7 @@ phase2_api:
   expected_model_version: '1.0.0'
   expected_configuration: B0
   host: 127.0.0.1
+  container_host: 0.0.0.0
   port: 8000
   workers: 1
   log_level: info
@@ -328,3 +329,27 @@ phase2_retrieval:
   expected_version: '1.0.0'
   expected_configuration: B0
   expected_file_count: 16
+
+# Opt-in diagnostic requests and acceptance criteria; never used by serving/training.
+phase2_quality_diagnostics:
+  question: What is the difference between a stack and a queue?
+  reference_answer: >-
+    A stack follows last in, first out (LIFO): push adds an item and pop removes
+    the most recently added item. It is useful for function calls or undo history.
+    A queue follows first in, first out (FIFO): enqueue adds at the back and
+    dequeue removes the oldest item from the front. It is useful for task
+    scheduling or breadth-first search. Both can support O(1) insertion and
+    removal with appropriate implementations.
+  cases:
+    correct: A stack uses LIFO and a queue uses FIFO.
+    incorrect: A stack uses FIFO and a queue uses LIFO.
+    nonsense: Bananas and airplanes are flying everywhere.
+    empty: ''
+    complete_correct: >-
+      A stack uses last in, first out (LIFO): push adds to the top and pop removes
+      the most recently added item. Stacks are used for function calls and undo
+      history. A queue uses first in, first out (FIFO): enqueue adds at the back
+      and dequeue removes the oldest item from the front. Queues are used for
+      task scheduling and breadth-first search.
+    reported_original: stack is fifo and queue is lifo
+  nonsense_disallowed_labels: [Good, Excellent]
