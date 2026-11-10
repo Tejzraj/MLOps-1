@@ -1,0 +1,13 @@
+﻿# Direct dependencies for Phase 2 imbalance experiments; no Phase 1 dependency rewrite.
+-c constraints-phase2-validation.txt
+imbalanced-learn==0.14.2
+wandb==0.31.0
+pytest==8.2.2
+numpy==2.4.6
+scipy==1.17.1
+scikit-learn==1.9.1
+pandas==3.0.6
+joblib==1.6.0
+skops==0.16.0
+pyarrow==25.0.1
+PyYAML==6.0.3

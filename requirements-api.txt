@@ -1,0 +1,5 @@
+# Frozen inference dependencies plus the minimal HTTP runtime; no training or W&B packages.
+-r requirements-inference.txt
+fastapi==0.162.2
+pydantic==2.14.3
+uvicorn==0.54.0

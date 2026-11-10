@@ -1,0 +1,6 @@
+# Backward-compatible override: the real backend is now defined in compose.yaml.
+services:
+  frontend:
+    environment:
+      FRONTEND_MODE: api
+      BACKEND_URL: http://backend:8000

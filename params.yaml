@@ -68,3 +68,288 @@ evaluation:
     - "f1_macro"
   confusion_matrix: true
   selection_rule: "choose higher grouped-CV f1_macro mean; if gap < max(CV f1_macro stds), tie-break by higher validation f1_macro"
+phase2_validation:
+  source_root: '../MLOps'
+  feature_path: 'models/feature_pipeline.joblib'
+  model_path: 'models/rf_model.joblib'
+  train_path: 'data/processed/train.parquet'
+  validation_path: 'data/processed/val.parquet'
+  test_path: 'data/processed/test.parquet'
+  mlflow_models_path: 'mlruns/645769363302061083/models'
+  run_id: '76b0337d67cb4266be26db7d67821de8'
+  report_dir: 'docs/phase2'
+  sample_per_class: 3
+  probability_atol: 0.000000000001
+  allowed_skops_types:
+    - src.features.build_features.TextLengthFeatures
+    - src.features.build_features.ReferenceSimilarityFeatures
+    - sklearn.tree._tree.Tree
+
+phase2_experiments:
+  experiment_id: mohler-rf-imbalance-v1
+  train_path: '../MLOps/data/processed/train.parquet'
+  train_sha256: f8918ad16e914f231c979144282e02e3326b83207b75b038d1ec9a7d6db6a894
+  group_column: question_id
+  target_column: quality_label
+  input_columns: [candidate_answer, reference_answer]
+  output_root: artifacts/phase2
+  artifact_files: [fold_assignments.json, config.json, metrics.json, predictions.json, warnings.json, provenance.json]
+  cv:
+    n_splits: 5
+    shuffle: true
+    random_state: 42
+  model_seed: 42
+  sampler_seed: 42
+  weight_exponent: 0.5
+  n_jobs: 2
+  reference_tfidf:
+    max_features: 5000
+    ngram_range: [1, 2]
+    stop_words: english
+    min_df: 2
+    sublinear_tf: true
+  estimator:
+    criterion: gini
+    max_depth: null
+    min_samples_split: 2
+    min_samples_leaf: 1
+    max_features: sqrt
+    bootstrap: true
+    oob_score: false
+  profiles:
+    smoke: {fold_indices: [0], n_estimators: 20, eligible_for_selection: false}
+    full: {fold_indices: [0, 1, 2, 3, 4], n_estimators: 300, eligible_for_selection: true}
+  metrics:
+    primary: macro_f1
+    supporting: [accuracy, balanced_accuracy, per_class_precision, per_class_recall, per_class_f1, support, confusion_matrix]
+    zero_division: 0
+    std_ddof: 0
+  selection: highest_mean_cv_macro_f1_exact_ties_prefer_configuration_order
+  configurations:
+    - {id: B0, estimator: random_forest, class_weight: balanced, sampling: none}
+    - {id: W1, estimator: random_forest, class_weight: null, sampling: none}
+    - {id: W2, estimator: random_forest, class_weight: balanced_subsample, sampling: none}
+    - {id: W3, estimator: random_forest, class_weight: sqrt_inverse_frequency, sampling: none}
+    - {id: O1, estimator: random_forest, class_weight: null, sampling: random_over, sampling_strategy: not majority, shrinkage: null}
+    - {id: F1, estimator: balanced_random_forest, class_weight: null, sampling: internal, sampling_strategy: all, replacement: true, bootstrap: false}
+  wandb:
+    mode: offline
+    project: interview-assistant-phase2
+    entity: null
+    group_prefix: mohler-rf-imbalance-v1
+    run_dir: wandb
+    cache_dir: wandb-cache
+    config_dir: wandb-config
+    data_dir: wandb-data
+    log_reviewed_artifacts: true
+    upload_raw_text: false
+    save_fold_models: false
+    register_models: false
+  environment:
+    requirements_path: requirements-phase2.txt
+    constraints_path: constraints-phase2-validation.txt
+    lock_path: artifacts/phase2/requirements-phase2.lock.txt
+    report_path: artifacts/phase2/environment.json
+    expected_python: '3.11.9'
+    expected_packages:
+      imbalanced-learn: '0.14.2'
+      wandb: '0.31.0'
+      pytest: '8.2.2'
+      numpy: '2.4.6'
+      scipy: '1.17.1'
+      scikit-learn: '1.9.1'
+      pandas: '3.0.6'
+      joblib: '1.6.0'
+      skops: '0.16.0'
+      pyarrow: '25.0.1'
+      PyYAML: '6.0.3'
+
+phase2_confirmation:
+  confirmation_id: mohler-rf-b0-f1-validation-v1
+  cv_directory: artifacts/phase2/mohler-rf-imbalance-v1-full-20261109T092712Z-15f5c059
+  frozen_config_sha256:
+    B0: ef0d7fc8fd73457a3604f7a25425ec77e3c22cb5a97a4c92ae169966ca0b36be
+    F1: b3e9f179556b7bc2604e68e70bd273eaefec974b51817e99155a6648ac54b3e2
+  configurations: [B0, F1]
+  baseline: B0
+  candidate: F1
+  decision_rule: confirm_candidate_only_if_validation_macro_f1_strictly_exceeds_baseline
+  train_path: '../MLOps/data/processed/train.parquet'
+  train_sha256: f8918ad16e914f231c979144282e02e3326b83207b75b038d1ec9a7d6db6a894
+  validation_path: '../MLOps/data/processed/val.parquet'
+  validation_sha256: 011d6d74002069cfedaabbf579adb9f48bfc27dab261f939d81bb029f436c047
+  expected_train_rows: 1561
+  expected_validation_rows: 229
+  output_root: artifacts/phase2
+  model_filename: model.joblib
+  pipeline_filename: feature_pipeline.joblib
+  feature_names_filename: feature_names.json
+  serialization_compress: 3
+  compatibility_sample_per_class: 3
+  probability_atol: 0.000000000001
+  reviewed_artifact_files: [config.json, metrics.json, predictions.json, manifest.json, warnings.json]
+  documentation_path: docs/phase2/validation_confirmation.md
+
+phase2_final:
+  final_id: mohler-b0-inference-v1
+  bundle_version: '1.0.0'
+  selected_configuration: B0
+  candidate_directory: artifacts/phase2/mohler-rf-b0-f1-validation-v1-20261109T094300Z-6c03b9e8/B0
+  candidate_manifest_sha256: 75a1183a13fea320d36e5266722ecf0e4bafb35f24592f4ad0a031f716282003
+  selection_record: artifacts/phase2/mohler-rf-b0-f1-validation-v1-20261109T094300Z-6c03b9e8/decision.json
+  selection_record_sha256: 172b41ca89791b8d81e49eb9c1961b48c0b97917f84b641956a39a6bd79e48bd
+  test_path: '../MLOps/data/processed/test.parquet'
+  test_sha256: 91baa727c27d2c7d28424425222689c86c957003aa85b2164cb932718b156386
+  expected_test_rows: 483
+  output_root: artifacts/phase2
+  bundle_directory: bundle
+  bundle_manifest_filename: bundle_manifest.json
+  bundle_params_filename: params.yaml
+  candidate_manifest_filename: candidate_manifest.json
+  model_card_filename: MODEL_CARD.md
+  runtime_packages: [numpy, scipy, scikit-learn, pandas, joblib, PyYAML, cloudpickle, narwhals, threadpoolctl, python-dateutil, tzdata]
+  runtime_requirements_filename: requirements-inference.txt
+  source_files:
+    - src/__init__.py
+    - src/features/__init__.py
+    - src/features/build_features.py
+    - src/models/__init__.py
+    - src/inference/__init__.py
+    - src/inference/predict.py
+  reference_class_source: src/models/run_imbalance_experiments.py
+  reference_class_name: ConfiguredReferenceSimilarityFeatures
+  reviewed_artifact_files: [final_evaluation.json, provenance.json, config.json, warnings.json]
+  documentation_path: docs/phase2/final_evaluation_and_bundle.md
+  preprocessing:
+    required_columns: [question, reference_answer, candidate_answer]
+    predictive_columns: [candidate_answer, reference_answer]
+    candidate_column: candidate_answer
+    candidate_html_pattern: '<br\s*/?>'
+    whitespace_pattern: '\s+'
+    strip: true
+    preserve_case: true
+    unicode_normalization: null
+    reject_empty_columns: [candidate_answer]
+    strict_fields: true
+
+phase2_registry:
+  full_cv_directory: artifacts/phase2/mohler-rf-imbalance-v1-full-20261109T092712Z-15f5c059
+  validation_directory: artifacts/phase2/mohler-rf-b0-f1-validation-v1-20261109T094300Z-6c03b9e8
+  final_directory: artifacts/phase2/mohler-b0-inference-v1-20261109T095935Z-d812a332
+  output_root: artifacts/phase2
+  documentation_path: docs/phase2/wandb_registry_workflow.md
+  entity: null
+  organization: null
+  project: interview-assistant-phase2
+  registry_name: Models
+  collection_name: interview-answer-quality
+  model_artifact_name: interview-answer-quality-b0
+  artifact_type: model
+  proposed_aliases: [bundle-v1.0.0, candidate-b0]
+  upload_approved: false
+  approved_extra_run_files: [requirements.txt]
+
+phase2_api:
+  bundle_path: artifacts/phase2/mohler-b0-inference-v1-20261109T095935Z-d812a332/bundle
+  bundle_environment_variable: INTERVIEW_MODEL_BUNDLE
+  manifest_filename: bundle_manifest.json
+  expected_manifest_sha256: 036f6ac95e47d096d55839f4afe76751af7b7164e8b02b39f1acb8a8a2f85c99
+  expected_model_version: '1.0.0'
+  expected_configuration: B0
+  host: 127.0.0.1
+  container_host: 0.0.0.0
+  port: 8000
+  workers: 1
+  log_level: info
+  output_root: artifacts/phase2
+  documentation_path: docs/phase2/fastapi_backend.md
+  public_limitations:
+    - Question text is accepted but is not a predictive feature.
+    - A reference answer is required; output is a quality category, not a numerical grade or detailed feedback.
+    - Trained on narrow-domain Mohler short answers; generalization to other interview domains is unverified.
+    - Minority-class recall is weak and probabilities are not established as calibrated.
+    - Published test results use a previously inspected benchmark, not an independent unseen test.
+  example_request:
+    question: What is a stack?
+    reference_answer: A stack is a last in first out data structure.
+    candidate_answer: A stack is a last in first out data structure.
+  verification_startup_timeout_seconds: 30
+  verification_poll_seconds: 0.1
+  client_timeout_seconds: 10
+
+phase2_gx:
+  output_root: artifacts/phase2
+  documentation_path: docs/phase2/gx_data_validation.md
+  expected_gx_version: '1.24.1'
+  inputs:
+    train:
+      path: '../MLOps/data/processed/train.parquet'
+      sha256: f8918ad16e914f231c979144282e02e3326b83207b75b038d1ec9a7d6db6a894
+    validation:
+      path: '../MLOps/data/processed/val.parquet'
+      sha256: 011d6d74002069cfedaabbf579adb9f48bfc27dab261f939d81bb029f436c047
+    test:
+      path: '../MLOps/data/processed/test.parquet'
+      sha256: 91baa727c27d2c7d28424425222689c86c957003aa85b2164cb932718b156386
+  required_columns: [question_id, question, reference_answer, candidate_answer, quality_label]
+  required_types:
+    question_id: [str]
+    question: [str]
+    reference_answer: [str]
+    candidate_answer: [str]
+    quality_label: [int64]
+  non_null_columns: [question_id, question, reference_answer, candidate_answer, quality_label]
+  nonblank_columns: [question_id, question, reference_answer, candidate_answer]
+  nonblank_regex: '\S'
+  minimum_rows: 1
+  optional_row_id_columns: [answer_id, row_id, id]
+  scores:
+    score_grader1: {types: [float64], minimum: 0.0, maximum: 5.0}
+    score_grader2: {types: [float64], minimum: 0.0, maximum: 5.0}
+    score_avg: {types: [float32], minimum: 0.0, maximum: 5.0}
+  duplicate_content_diagnostic: true
+  result_format:
+    result_format: SUMMARY
+    partial_unexpected_count: 0
+    include_unexpected_rows: false
+    return_unexpected_index_query: false
+  tests: [tests/test_gx_validation.py, tests/test_gx_group_leakage.py, tests/test_split.py]
+  unit_test_sample_rows: 16
+  progress_bars: false
+  text_validation_view: object_preserve_values
+
+phase2_retrieval:
+  base_url: https://api.forge.coreweave.com
+  registry_reference: aroramahek21-r-v-c-e-org/wandb-registry-model/interview-answer-quality:v0
+  artifact_type: model
+  expected_artifact_digest: 6ff461f0f861ab0083dfbf1ef036503e
+  destination: artifacts/phase2/retrieved/b0-v1.0.0
+  manifest_filename: bundle_manifest.json
+  expected_manifest_sha256: 036f6ac95e47d096d55839f4afe76751af7b7164e8b02b39f1acb8a8a2f85c99
+  expected_version: '1.0.0'
+  expected_configuration: B0
+  expected_file_count: 16
+
+# Opt-in diagnostic requests and acceptance criteria; never used by serving/training.
+phase2_quality_diagnostics:
+  question: What is the difference between a stack and a queue?
+  reference_answer: >-
+    A stack follows last in, first out (LIFO): push adds an item and pop removes
+    the most recently added item. It is useful for function calls or undo history.
+    A queue follows first in, first out (FIFO): enqueue adds at the back and
+    dequeue removes the oldest item from the front. It is useful for task
+    scheduling or breadth-first search. Both can support O(1) insertion and
+    removal with appropriate implementations.
+  cases:
+    correct: A stack uses LIFO and a queue uses FIFO.
+    incorrect: A stack uses FIFO and a queue uses LIFO.
+    nonsense: Bananas and airplanes are flying everywhere.
+    empty: ''
+    complete_correct: >-
+      A stack uses last in, first out (LIFO): push adds to the top and pop removes
+      the most recently added item. Stacks are used for function calls and undo
+      history. A queue uses first in, first out (FIFO): enqueue adds at the back
+      and dequeue removes the oldest item from the front. Queues are used for
+      task scheduling and breadth-first search.
+    reported_original: stack is fifo and queue is lifo
+  nonsense_disallowed_labels: [Good, Excellent]

@@ -1,0 +1,9 @@
+﻿# Isolated Phase 2 data validation; no edits to ML, experiments or API environments.
+great-expectations==1.24.1
+pandas==3.0.6
+numpy==2.4.6
+pyarrow==25.0.1
+PyYAML==6.0.3
+pytest==8.2.2
+# Reuse existing grouped-split assertions/tests without loading or fitting any model.
+scikit-learn==1.9.1
