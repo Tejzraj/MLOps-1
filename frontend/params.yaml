@@ -1,0 +1,17 @@
+# Frontend-only settings. Paths below are relative to this file.
+app:
+  title: Interview Studio
+  log_level: INFO
+  max_answer_chars: 12000
+backend:
+  url: http://localhost:8000
+  predict_path: /predict
+  timeout_seconds: 15
+  mode: mock
+  mock_label: Good
+quality_labels:
+  - Poor
+  - Needs Improvement
+  - Good
+  - Excellent
+question_bank_path: questions.yaml

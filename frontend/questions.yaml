@@ -1,0 +1,51 @@
+# Curated practice content, not Mohler records or human-labelled training data.
+- question_id: practice-arrays
+  topic: Arrays
+  question: How does an array differ from a linked list?
+  reference_answer: >-
+    An array stores elements in contiguous memory and supports direct indexed
+    access in O(1) time. A linked list stores nodes connected by pointers and
+    requires O(n) traversal to reach an arbitrary element. Inserting or deleting
+    in an array can require shifting O(n) elements. A linked list can insert or
+    delete in O(1) time when the required node and links are already known;
+    finding the position can still take O(n). Linked lists need extra pointer memory.
+- question_id: practice-stacks
+  topic: Stacks & queues
+  question: What is the difference between a stack and a queue? Give a use case for each.
+  reference_answer: >-
+    A stack follows last in, first out (LIFO): push adds an item and pop removes
+    the most recently added item. It is useful for function calls or undo history.
+    A queue follows first in, first out (FIFO): enqueue adds at the back and
+    dequeue removes the oldest item from the front. It is useful for task
+    scheduling or breadth-first search. Both can support O(1) insertion and
+    removal with appropriate implementations.
+- question_id: practice-hashing
+  topic: Hash tables
+  question: How does a hash table work, and how can it handle collisions?
+  reference_answer: >-
+    A hash table uses a hash function to map a key to a bucket or array index.
+    A collision occurs when different keys map to the same location. Separate
+    chaining stores multiple entries in a bucket; open addressing probes other
+    locations. With a suitable hash function and controlled load factor, lookup,
+    insertion and deletion take O(1) expected time, but can take O(n) in the
+    worst case. Resizing and rehashing help maintain performance.
+- question_id: practice-bst
+  topic: Trees
+  question: What is a binary search tree, and why does balancing matter?
+  reference_answer: >-
+    A binary search tree is a binary tree in which keys in a node's left subtree
+    are smaller than the node's key and keys in its right subtree are larger,
+    under a consistent policy for duplicates. Search, insertion and deletion
+    take O(h) time, where h is the height. A balanced tree has height O(log n),
+    while a skewed tree can have height O(n). Balancing prevents the tree from
+    degrading into a linear chain.
+- question_id: practice-graphs
+  topic: Graphs
+  question: Compare breadth-first search and depth-first search on a graph.
+  reference_answer: >-
+    Breadth-first search explores vertices level by level using a queue and
+    finds shortest paths by number of edges in an unweighted graph. Depth-first
+    search explores a path deeply before backtracking, using a stack or recursion;
+    it is useful for cycle detection and topological sorting. Both track visited
+    vertices to avoid repeated traversal. With adjacency lists, traversing the
+    whole graph takes O(V + E) time and O(V) auxiliary space.
