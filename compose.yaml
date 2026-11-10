@@ -1,0 +1,21 @@
+services:
+  frontend:
+    image: interview-frontend:local
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "127.0.0.1:8501:8501"
+    environment:
+      # Separate Compose variables avoid inheriting a host's localhost API URL.
+      FRONTEND_MODE: ${COMPOSE_FRONTEND_MODE:-mock}
+      BACKEND_URL: ${COMPOSE_BACKEND_URL:-http://backend:8000}
+      BACKEND_TIMEOUT_SECONDS: ${COMPOSE_BACKEND_TIMEOUT_SECONDS:-15}
+    init: true
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    # Inherits the Streamlit HEALTHCHECK from frontend/Dockerfile.
+    # No backend dependency: the mock demonstration works independently.

@@ -1,0 +1,77 @@
+name: Frontend CI
+
+"on":
+  push:
+    branches: [phase-2-frontend-devops, main]
+    paths:
+      - 'frontend/**'
+      - '.dockerignore'
+      - 'compose.yaml'
+      - '.github/workflows/frontend-ci.yml'
+  pull_request:
+    paths:
+      - 'frontend/**'
+      - '.dockerignore'
+      - 'compose.yaml'
+      - '.github/workflows/frontend-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: frontend-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: |
+            frontend/requirements.txt
+            frontend/requirements-dev.txt
+      - name: Install frontend test dependencies
+        run: python -m pip install -r frontend/requirements-dev.txt
+      - name: Run frontend smoke tests
+        run: python -m pytest -c frontend/pytest.ini frontend/tests
+      - name: Validate Compose configurations
+        env:
+          BACKEND_IMAGE: example-backend:validation-only
+        run: |
+          docker compose -f compose.yaml config --quiet
+          docker compose -f compose.yaml -f frontend/compose.backend.example.yaml config --quiet
+      - name: Build frontend image
+        run: docker build --pull --file frontend/Dockerfile --tag interview-frontend:ci .
+      - name: Start frontend container
+        run: docker run --detach --name frontend-smoke interview-frontend:ci
+      - name: Wait for container health
+        shell: bash
+        run: |
+          for attempt in {1..30}; do
+            status=$(docker inspect --format '{{.State.Health.Status}}' frontend-smoke)
+            if [ "$status" = healthy ]; then
+              echo "Frontend container is healthy"
+              exit 0
+            fi
+            if [ "$status" = unhealthy ]; then
+              break
+            fi
+            sleep 2
+          done
+          docker inspect frontend-smoke
+          exit 1
+      - name: Container logs and cleanup
+        if: always()
+        run: |
+          if docker container inspect frontend-smoke > /dev/null 2>&1; then
+            docker logs frontend-smoke
+            docker rm --force frontend-smoke
+          fi
