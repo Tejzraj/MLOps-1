@@ -24,3 +24,10 @@ Makefile text eol=lf
 *.pkl binary
 *.joblib binary
 *.onnx binary
+
+# Preserve exact Phase 2 source bytes recorded by frozen inference/provenance hashes.
+src/inference/predict.py -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+src/models/run_imbalance_experiments.py -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+src/models/confirm_validation.py -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+src/utils/phase2_common.py -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+src/utils/wandb_tracking.py -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol

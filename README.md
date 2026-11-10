@@ -1,3 +1,11 @@
+## Phase 2 ML/backend contribution
+
+Start with **[the teammate setup and Streamlit/API handoff](docs/phase2/teammate_handoff.md)**. It covers the verified private B0 v1.0.0 ZIP, checksum verification, isolated API installation and INTERVIEW_MODEL_BUNDLE. Model binaries and datasets are not in Git.
+
+B0 is privately registered in W&B, but teammate Registry Viewer access is blocked by the current plan; use the private ZIP temporarily and do not run cloud retrieval yet. Nine historical experiment runs remain offline. Phase 1 source, DVC pipeline and MLflow records are preserved. This contribution adds experiments, Pytest, GX validation and local FastAPI inference; Docker, CI/CD, monitoring and deployment are outside this contribution.
+
+---
+
 <div align="center">
 
 <img src="docs/assets/banner.svg" alt="AI-Based Interview Preparation Assistant MLOps Banner" width="100%" />
@@ -47,7 +55,7 @@ The **AI-Based Interview Preparation Assistant** is an end-to-end Machine Learni
 Engineered for academic course **AI252TA (Machine Learning Operations - Semester V)**, this repository implements industry-standard MLOps practices: **versioned data pipelines with DVC**, **reproducible experiment tracking with MLflow**, **automated quality validation**, **containerized inference serving**, and **drift-triggered continuous retraining**.
 
 > [!NOTE]
-> **Status:** Phase 1 (Development & Reproducibility) is finished through test evaluation; see [`reports/phase1/phase1_report.md`](reports/phase1/phase1_report.md). No model is deployed and Phase 2 (serving, CI/CD) has not started. Faculty review of the dataset change is pending.
+> **Status:** Phase 1 (Development & Reproducibility) is finished through test evaluation; see [`reports/phase1/phase1_report.md`](reports/phase1/phase1_report.md). Phase 2 ML experiments, data validation and local FastAPI serving are implemented on phase-2-model-api; no model is deployed. See the Phase 2 handoff below. Faculty review of the dataset change is pending.
 
 ---
 
