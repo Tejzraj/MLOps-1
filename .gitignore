@@ -109,3 +109,32 @@ mlruns/*
 # DO NOT ignore .dvc files, dvc.yaml, dvc.lock, params.yaml
 *.egg-info/
 notebooks/mlruns/
+
+# Isolated Phase 2 artifact validation
+.venv-validation/
+
+# Phase 2 experiments: environments and all generated outputs
+.venv-experiments/
+artifacts/phase2/
+wandb/
+
+# Separate local FastAPI runtime
+.venv-api/
+
+# Separate GX data-validation environment
+.venv-gx/
+
+# Standalone private Registry download environment
+.venv-retrieval/
+
+# Original generated validation evidence: keep local, includes paths/learned vocabulary
+/docs/phase2/local_model_validation.json
+/docs/phase2/local_model_validation.md
+/docs/phase2/skops_type_inspection.json
+# Defense in depth for private model handoffs and SDK caches
+*.joblib
+*.skops
+*.zip
+wandb-cache/
+wandb-data/
+wandb-config/
