@@ -7,6 +7,8 @@ name: Frontend CI
       - 'frontend/**'
       - '.dockerignore'
       - 'compose.yaml'
+      - 'compose.ghcr.yaml'
+      - '.github/workflows/ghcr-delivery.yml'
       - 'src/api/**'
       - 'src/inference/**'
       - 'requirements-api*.txt'
@@ -18,6 +20,8 @@ name: Frontend CI
       - 'frontend/**'
       - '.dockerignore'
       - 'compose.yaml'
+      - 'compose.ghcr.yaml'
+      - '.github/workflows/ghcr-delivery.yml'
       - 'src/api/**'
       - 'src/inference/**'
       - 'requirements-api*.txt'
@@ -55,9 +59,12 @@ jobs:
       - name: Validate Compose configurations
         env:
           COMPOSE_MODEL_BUNDLE: artifacts/phase2/ci-missing-bundle
+          GHCR_REPOSITORY: validation/repository
+          IMAGE_TAG: sha-${{ github.sha }}
         run: |
           docker compose -f compose.yaml config --quiet
           docker compose -f compose.yaml -f frontend/compose.backend.example.yaml config --quiet
+          docker compose -f compose.yaml -f compose.ghcr.yaml config --quiet
       - name: Build backend image (no private bundle)
         run: docker build --pull --file src/api/Dockerfile --tag interview-backend:ci .
       - name: Build frontend image

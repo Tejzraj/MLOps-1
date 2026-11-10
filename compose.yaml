@@ -1,6 +1,8 @@
 services:
   backend:
     image: interview-backend:local
+    # Match the private bundle owner without widening host file permissions.
+    user: "${COMPOSE_BACKEND_UID:-10001}:${COMPOSE_BACKEND_GID:-10001}"
     build:
       context: .
       dockerfile: src/api/Dockerfile
@@ -10,13 +12,9 @@ services:
       # Same configured relative path is used as the mount target and API override.
       INTERVIEW_MODEL_BUNDLE: ${COMPOSE_MODEL_BUNDLE:?Set COMPOSE_MODEL_BUNDLE to the verified bundle directory under artifacts/phase2}
     volumes:
-      - type: bind
-        source: ./${COMPOSE_MODEL_BUNDLE:?Set COMPOSE_MODEL_BUNDLE}
-        target: /app/${COMPOSE_MODEL_BUNDLE:?Set COMPOSE_MODEL_BUNDLE}
-        read_only: true
-        bind:
-          create_host_path: false
-          selinux: Z
+      # Short syntax applies private SELinux relabeling through the bind API.
+      # Check the dedicated source directory exists before recreating backend.
+      - "./${COMPOSE_MODEL_BUNDLE:?Set COMPOSE_MODEL_BUNDLE}:/app/${COMPOSE_MODEL_BUNDLE:?Set COMPOSE_MODEL_BUNDLE}:ro,Z"
     healthcheck:
       # Liveness alone is insufficient: do not start the UI with an unavailable model.
       test: ["CMD", "python", "-c", "import json, urllib.request; from src.api.app import read_settings; r = urllib.request.urlopen(f'http://127.0.0.1:{read_settings().port}/health', timeout=3); assert json.load(r)['model_ready'] is True"]

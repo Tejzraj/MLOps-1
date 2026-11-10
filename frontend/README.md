@@ -123,12 +123,19 @@ root, set a **relative** verified bundle path beneath `artifacts/phase2`:
 
 ```bash
 export COMPOSE_MODEL_BUNDLE=artifacts/phase2/private-handoff/bundle
+export COMPOSE_BACKEND_UID="$(id -u)"
+export COMPOSE_BACKEND_GID="$(id -g)"
 test -f "$COMPOSE_MODEL_BUNDLE/bundle_manifest.json"
-sudo env COMPOSE_MODEL_BUNDLE="$COMPOSE_MODEL_BUNDLE" docker compose config --quiet
-sudo env COMPOSE_MODEL_BUNDLE="$COMPOSE_MODEL_BUNDLE" docker compose build
-sudo env COMPOSE_MODEL_BUNDLE="$COMPOSE_MODEL_BUNDLE" docker compose up -d --wait --wait-timeout 120
-sudo env COMPOSE_MODEL_BUNDLE="$COMPOSE_MODEL_BUNDLE" docker compose ps
-sudo env COMPOSE_MODEL_BUNDLE="$COMPOSE_MODEL_BUNDLE" docker compose logs --tail=100 backend frontend
+dc() {
+  sudo env COMPOSE_MODEL_BUNDLE="$COMPOSE_MODEL_BUNDLE" \
+    COMPOSE_BACKEND_UID="$COMPOSE_BACKEND_UID" \
+    COMPOSE_BACKEND_GID="$COMPOSE_BACKEND_GID" docker compose -f compose.yaml "$@"
+}
+dc config --quiet
+dc build
+dc up -d --wait --wait-timeout 120
+dc ps
+dc logs --tail=100 backend frontend
 ```
 
 The frontend defaults to API mode and reaches `http://backend:8000` over Compose
@@ -136,14 +143,15 @@ DNS. The backend launches `python src/api/container.py`, uses the configured por
 and binds to the container interface. Host ports bind only to loopback. Bundle
 contents are mounted read-only, never copied into either image. The bind mount
 uses Fedora SELinux `Z` relabelling on that private directory only; no SELinux or
-firewall disabling is needed. The container's UID 10001 must have read/traverse
-access to the bundle; preserve private permissions, and do not make it world-readable.
+firewall disabling is needed. The backend user overrides above match the bundle
+owner for a locally owned private bundle; preserve private permissions, and do
+not make it world-readable. Omitted overrides retain the image's UID/GID 10001.
 A missing source directory is not auto-created. Missing/corrupt bundles make the
 backend unhealthy and prevent dependent frontend startup. Inspect readiness with
 curl as above. A successful build alone does not verify model loading.
 
 ```bash
-sudo env COMPOSE_MODEL_BUNDLE="$COMPOSE_MODEL_BUNDLE" docker compose down
+dc down
 ```
 
 For a frontend-only mock demonstration without any model or backend:
@@ -184,9 +192,12 @@ predictions, not model performance metrics. The test suite emitted a Starlette
 HTTPX deprecation warning; tests still passed.
 
 Project syntax, YAML parsing and `git diff --check` passed during integration.
-Docker is not installed and Podman has no Compose provider, so image builds,
-Compose validation, SELinux mount permissions and container startup remain
-unverified locally. CI was updated but has not been triggered. No DVC stage,
+Docker Engine and Compose are now installed. Compose configuration validates
+with the verified bundle path and backend UID/GID overrides. Both host ports
+were free and Fedora SELinux was enforcing. Codex cannot access the Docker
+socket and passwordless sudo is unavailable, so image builds, actual mount
+access and container startup still require the Konsole commands above. CI was
+updated but has not been triggered. No DVC stage,
 training or evaluation logic was changed; `dvc repro` was not run. No commit,
 push, upload or deployment was made.
 

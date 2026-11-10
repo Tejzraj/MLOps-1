@@ -1,0 +1,110 @@
+name: GHCR Delivery
+
+"on":
+  workflow_run:
+    workflows: [Frontend CI]
+    branches: [main]
+    types: [completed]
+
+# Only the publishing jobs receive write permission; no deployment credentials.
+permissions: {}
+
+concurrency:
+  group: ghcr-delivery-${{ github.event.workflow_run.head_sha }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    # Never publish PR/fork code or a commit whose CI failed or was cancelled.
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      (github.event.workflow_run.event == 'push' ||
+       github.event.workflow_run.event == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - component: frontend
+            dockerfile: frontend/Dockerfile
+          - component: backend
+            dockerfile: src/api/Dockerfile
+    steps:
+      - name: Check out the exact CI-tested main commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: ${{ github.repository }}
+          ref: ${{ github.event.workflow_run.head_sha }}
+          persist-credentials: false
+
+      - name: Set traceable image reference
+        id: image
+        env:
+          REPOSITORY: ${{ github.repository }}
+          SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
+          COMPONENT: ${{ matrix.component }}
+        run: |
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          image="ghcr.io/${REPOSITORY,,}/${COMPONENT}:sha-${SOURCE_SHA}"
+          printf 'reference=%s\n' "$image" >> "$GITHUB_OUTPUT"
+
+      - name: Build source-only image before registry login
+        env:
+          IMAGE: ${{ steps.image.outputs.reference }}
+          DOCKERFILE: ${{ matrix.dockerfile }}
+          SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          # Exact tracked public files only, even if unrelated files appear in checkout.
+          build_context=$(mktemp -d "$RUNNER_TEMP/image-context.XXXXXX")
+          git archive "$SOURCE_SHA" \
+            .dockerignore params.yaml requirements-api.txt requirements-inference.txt \
+            frontend/Dockerfile frontend/requirements.txt frontend/__init__.py \
+            frontend/app.py frontend/api_client.py frontend/config.py \
+            frontend/question_bank.py frontend/params.yaml frontend/questions.yaml \
+            src/__init__.py src/api/__init__.py src/api/Dockerfile src/api/app.py \
+            src/api/model_runtime.py src/api/container.py \
+            src/inference/__init__.py src/inference/predict.py \
+            src/utils/__init__.py src/utils/phase2_common.py \
+            src/features/__init__.py src/models/__init__.py \
+            | tar -xf - -C "$build_context"
+          docker build --pull --file "$build_context/$DOCKERFILE" --tag "$IMAGE" \
+            --label "org.opencontainers.image.source=https://github.com/${REPOSITORY}" \
+            --label "org.opencontainers.image.revision=${SOURCE_SHA}" "$build_context"
+
+      - name: Reject private artifact paths in application image contents
+        env:
+          IMAGE: ${{ steps.image.outputs.reference }}
+        run: |
+          container=$(docker create "$IMAGE")
+          trap 'docker rm "$container" >/dev/null' EXIT
+          docker export "$container" --output "$RUNNER_TEMP/image-rootfs.tar"
+          tar -tf "$RUNNER_TEMP/image-rootfs.tar" > "$RUNNER_TEMP/image-files.txt"
+          if grep -Ei '^app/(artifacts|data|models|wandb|wandb-cache|wandb-data|wandb-config|\.git|\.aws)(/|$)|^app/.*\.(zip|joblib|skops|parquet|pkl|pem|key)$|^app/(.*/)?(\.env(\..*)?|secrets\.toml|credentials\.json)$' "$RUNNER_TEMP/image-files.txt"; then
+            echo 'Forbidden application artifact/credential path found; refusing publication' >&2
+            exit 1
+          fi
+
+      - name: Authenticate with the built-in token
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.actor }}
+        run: printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GHCR_USER" --password-stdin
+
+      - name: Publish SHA-tagged image and record digest
+        env:
+          IMAGE: ${{ steps.image.outputs.reference }}
+        run: |
+          docker push "$IMAGE"
+          digest=$(docker image inspect --format '{{index .RepoDigests 0}}' "$IMAGE")
+          printf '%s\n' "Published: $IMAGE" "Digest: $digest" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Remove registry login
+        if: always()
+        run: docker logout ghcr.io

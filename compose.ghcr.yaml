@@ -1,0 +1,9 @@
+# Authorized-host delivery override. Local compose.yaml remains the build setup.
+# Requires Compose support for !reset (validated with Compose v5.7.0).
+services:
+  backend:
+    image: ghcr.io/${GHCR_REPOSITORY:?Set lowercase owner/repository}/backend:${IMAGE_TAG:?Set sha- followed by the full CI-tested commit SHA}
+    build: !reset null
+  frontend:
+    image: ghcr.io/${GHCR_REPOSITORY:?Set lowercase owner/repository}/frontend:${IMAGE_TAG:?Set sha- followed by the full CI-tested commit SHA}
+    build: !reset null
