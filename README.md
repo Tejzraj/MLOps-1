@@ -270,7 +270,7 @@ Foundation   Dev & Repro  Production   Observability Continuous ML Governance
 </details>
 
 <details open>
-<summary><strong>Phase 1 — Development & Reproducibility (CURRENT FOCUS)</strong></summary>
+<summary><strong>Phase 1 — Development & Reproducibility (COMPLETED)</strong></summary>
 
 - [x] Dataset specification, labeling guidelines, and data collection protocol authored (`docs/dataset/`)
 - [x] Faculty review dossier prepared (`docs/dataset/DATASET_APPROVAL.md`)
@@ -293,7 +293,7 @@ Foundation   Dev & Repro  Production   Observability Continuous ML Governance
 </details>
 
 <details>
-<summary><strong>Phase 2 — Productionization & Deployment (PLANNED)</strong></summary>
+<summary><strong>Phase 2 — Productionization & Deployment (CURRENT)</strong></summary>
 
 - [ ] PyTest test suite implemented (unit tests, integration tests, schema tests)
 - [ ] Model behavioral and linguistic invariance tests added
@@ -306,7 +306,7 @@ Foundation   Dev & Repro  Production   Observability Continuous ML Governance
 </details>
 
 <details>
-<summary><strong>Phase 3 — Observability & Continuous Monitoring (PLANNED)</strong></summary>
+<summary><strong>Phase 3 — Observability & Continuous Monitoring (CURRENT)</strong></summary>
 
 - [ ] Structured request/response logging framework deployed
 - [ ] Evidently AI integrated for data drift and vocabulary shift detection
